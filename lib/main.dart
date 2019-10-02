@@ -41,7 +41,7 @@ Future<Null> _ensureLoggedIn() async {
 
 _handleSubmitted(String text) async{
   await _ensureLoggedIn();  //Verifica se o usuario esta logado
-  _sendMessage(text);
+  _sendMessage(text: text);
 }
 
 void _sendMessage({String text, String imgUrl}){
