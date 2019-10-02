@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +39,22 @@ Future<Null> _ensureLoggedIn() async {
   }
 }
 
+_handleSubmitted(String text) async{
+  await _ensureLoggedIn();  //Verifica se o usuario esta logado
+  _sendMessage(text);
+}
+
+void _sendMessage({String text, String imgUrl}){
+  Firestore.instance.collection("messages").add(
+    {
+      "text" : text,
+      "imgUrl" : imgUrl,
+      "senderName" : googleSignIn.currentUser.displayName,
+      "senderPhotoUrl" : googleSignIn.currentUser.photoUrl
+    }
+  );
+}
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -71,10 +88,26 @@ class _ChatScreenState extends State<ChatScreen> {
         body: Column(
           children: <Widget>[
             Expanded(
-              child: ListView(
-                children: <Widget>[
-                  ChatMessage()
-                ],
+              child: StreamBuilder(
+                stream: Firestore.instance.collection("message").snapshots(),
+                  builder: (context, snapshot){
+                    switch(snapshot.connectionState){
+                      case ConnectionState.none:
+                      case ConnectionState.waiting:
+                        return Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      default:
+                        return ListView.builder(
+                          reverse: true,    //faz com q a lista comece de baixo para cima
+                          itemCount: snapshot.data.documents.length,
+                            itemBuilder: (context, index){
+                            List r = snapshot.data.documents.reversed.toList(); //reverte itens da lista comeca de baixo para cima
+                             return ChatMessage(r[index].data);
+                            }
+                        );
+                    }
+                  }
               ),
             ),
             Divider(
@@ -99,8 +132,16 @@ class TextComposer extends StatefulWidget {
 }
 
 class _TextComposerState extends State<TextComposer> {
-
+  final _textController = TextEditingController();
   bool _isComposing = false;
+
+  //Funcao para limpar o campo e desabilitar o btn de enviar
+  void _reset(){
+    _textController.clear();
+    setState(() {
+      _isComposing = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,11 +164,16 @@ class _TextComposerState extends State<TextComposer> {
             ),
             Expanded(   //Expanded utiliza o espaço disponivel
               child: TextField(
+                controller: _textController,
                 decoration: InputDecoration.collapsed(hintText: "Enviar mensagem"),
                 onChanged: (text){  //verifica se o campo de text tem caracteris para habilitar o btn de enviar
                   setState(() {
                     _isComposing = text.length > 0;
                   });
+                },
+                onSubmitted: (text){
+                  _handleSubmitted(_textController.text);
+                  _reset();
                 },
               ),
             ),
@@ -137,13 +183,19 @@ class _TextComposerState extends State<TextComposer> {
                 CupertinoButton(
                   child: Text("Enviar"),
                   onPressed: _isComposing ?
-                  (){}
+                  (){
+                    _handleSubmitted(_textController.text);
+                    _reset();
+                  }
                   : null,
                 )
                   : IconButton(
                 icon: Icon(Icons.send),
                 onPressed: _isComposing ?
-                (){}
+                (){
+                  _handleSubmitted(_textController.text);
+                  _reset();
+                }
                 : null,
               )
             )
@@ -156,6 +208,11 @@ class _TextComposerState extends State<TextComposer> {
 
 //widget q tera a imagem, nome e texto da mensagem
 class ChatMessage extends StatelessWidget {
+
+  final Map<String, dynamic> data;
+
+  ChatMessage(this.data);
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -168,7 +225,7 @@ class ChatMessage extends StatelessWidget {
             height: 20.0,
             width: 20.0,
             child: CircleAvatar(
-              backgroundImage: NetworkImage("https://www.publicdomainpictures.net/pictures/190000/nahled/young-business-woman-1470305665A9g.jpg",),
+              backgroundImage: NetworkImage(data["senderPhotoUrl"]),
             ),
           ),
           Expanded(  //ocupa o maior espaço possivel
@@ -176,12 +233,14 @@ class ChatMessage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  "Carlinhos",
+                  data["senderName"],
                   style: Theme.of(context).textTheme.subhead,
                 ),
                 Container(
                   margin: const EdgeInsets.only(top: 5.0),
-                  child: Text("Ola, como vai?"),
+                  child: data["imgUrl"] != null ?
+                    Image.network(data["imgUrl"], width: 250.0,) :
+                      Text(data["text"]),
                 )
               ],
             ),
