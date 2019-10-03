@@ -44,6 +44,7 @@ _handleSubmitted(String text) async{
   _sendMessage(text: text);
 }
 
+
 void _sendMessage({String text, String imgUrl}){
   Firestore.instance.collection("messages").add(
     {
